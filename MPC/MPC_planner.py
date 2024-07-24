@@ -5,22 +5,20 @@ import matplotlib.pyplot as plt
 # Define the time step and horizon
 dt = 0.1  # time step
 N = 20    # prediction horizon
+T = 50    # total number of simulation steps
 
 # Define vehicle parameters
 L = 2.0   # wheelbase
-v = 0.3   # constant velocity
-
-# Define initial state
-# X_0 = np.array([0, 0, 0])  # [X, Y, theta]
+v = 0.1   # constant velocity
 
 # Define reference trajectory (circle for example)
-t = np.linspace(0, N*dt, N+1)
-X_ref = np.vstack((t, np.sin(t), t))
-X_0 = X_ref[:, 0]
+t = np.linspace(0, T*dt, T+1)
+X_ref = np.vstack((np.cos(t), np.sin(t), t))
 
 # Define CasADi variables
 X = ca.SX.sym('X', 3, N+1)  # state variables [X, Y, theta]
 delta = ca.SX.sym('delta', N)  # control inputs (steering angle)
+X_0 = ca.SX.sym('X_0', 3)  # initial state
 
 # Define the cost function and constraints
 cost = 0
@@ -46,37 +44,61 @@ constraints = ca.vertcat(*constraints)
 
 # Set up the optimization problem
 opt_variables = ca.vertcat(ca.reshape(X, -1, 1), delta)
+nlp = {'x': opt_variables, 'f': cost, 'g': constraints, 'p': X_0}
 opts = {
     'ipopt.print_level': 0,
     'ipopt.max_iter': 100,
     'ipopt.tol': 1e-4,
     'ipopt.acceptable_tol': 1e-4,
 }
-nlp = {'x': opt_variables, 'f': cost, 'g': constraints}
 solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
 
-# Initial guess
-X_guess = np.tile(X_0, (N+1, 1)).T
-delta_guess = np.zeros(N)
-initial_guess = np.concatenate([X_guess.flatten(), delta_guess])
+# Initial state
+X_0_val = X_ref[:, 0]
 
-# Solve the optimization problem
-solution = solver(
-    x0=initial_guess,
-    lbg=np.zeros(constraints.shape[0]),
-    ubg=np.zeros(constraints.shape[0]),
-    lbx=-ca.inf,
-    ubx=ca.inf
-)
+# Storage for simulation data
+X_sim = [X_0_val]
+delta_sim = []
 
-# Extract the optimal solution
-X_opt = np.array(solution['x'][:3*(N+1)]).reshape(3, N+1)
-delta_opt = np.array(solution['x'][3*(N+1):])
+# MPC loop
+for i in range(T):
+    # Initial guess
+    X_guess = np.tile(X_0_val, (N+1, 1)).T
+    delta_guess = np.zeros(N)
+    initial_guess = np.concatenate([X_guess.flatten(), delta_guess])
+
+    # Solve the optimization problem
+    solution = solver(
+        x0=initial_guess,
+        p=X_0_val,
+        lbg=-ca.inf,
+        ubg=ca.inf,
+        lbx=-ca.inf,
+        ubx=ca.inf,
+    )
+
+    # Extract the optimal solution
+    X_opt = np.transpose(np.array(solution['x'][:3*(N+1)]).reshape(N+1, 3))
+    delta_opt = np.array(solution['x'][3*(N+1):])
+
+    # Apply the first control input
+    delta_applied = delta_opt[0]
+    delta_sim.append(delta_applied)
+
+    # Update the state
+    X_0_val = X_opt[:, 1]
+
+    # Store the state
+    X_sim.append(X_0_val)
+
+# Convert simulation data to numpy arrays
+X_sim = np.array(X_sim).T
+delta_sim = np.array(delta_sim)
 
 # Plot the results
 plt.figure(figsize=(10, 5))
 plt.plot(X_ref[0, :], X_ref[1, :], 'r--', label='Reference Trajectory')
-plt.plot(X_opt[0, :], X_opt[1, :], 'b-', label='Optimized Trajectory')
+plt.plot(X_sim[0, :], X_sim[1, :], 'b-', label='Optimized Trajectory')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.legend()
@@ -84,7 +106,7 @@ plt.title('MPC for Kinematic Bicycle Model with CasADi')
 plt.show()
 
 plt.figure(figsize=(10, 5))
-plt.plot(delta_opt, 'b-', label='Steering Angle (delta)')
+plt.plot(delta_sim, 'b-', label='Steering Angle (delta)')
 plt.xlabel('Time Step')
 plt.ylabel('Steering Angle (rad)')
 plt.title('Optimal Steering Angle Over Time')
