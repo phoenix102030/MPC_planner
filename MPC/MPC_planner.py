@@ -8,8 +8,8 @@ N = 20    # prediction horizon
 T = 50    # total number of simulation steps
 
 # Define vehicle parameters
-L = 2.0   # wheelbase
-v = 0.1   # constant velocity
+L = 20.0   # wheelbase
+v = 10.0   # constant velocity
 
 # Define reference trajectory (circle for example)
 t = np.linspace(0, T*dt, T+1)
