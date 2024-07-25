@@ -4,19 +4,19 @@ import matplotlib.pyplot as plt
 
 # Define the time step and horizon
 dt = 0.1  # time step
-N = 20    # prediction horizon
+N = 10    # prediction horizon
 
 # Define vehicle parameters
-L = 2.0   # wheelbase
-v = 0.3   # constant velocity
+L = 0.2   # wheelbase
+v = 0.1   # constant velocity
 
 # Define initial state
-# X_0 = np.array([0, 0, 0])  # [X, Y, theta]
+X_0 = np.array([0, 0, 0])  # [X, Y, theta]
 
 # Define reference trajectory (circle for example)
 t = np.linspace(0, N*dt, N+1)
 X_ref = np.vstack((t, np.sin(t), t))
-X_0 = X_ref[:, 0]
+#X_0 = X_ref[:, 0]
 
 # Define CasADi variables
 X = ca.SX.sym('X', 3, N+1)  # state variables [X, Y, theta]
@@ -63,8 +63,8 @@ initial_guess = np.concatenate([X_guess.flatten(), delta_guess])
 # Solve the optimization problem
 solution = solver(
     x0=initial_guess,
-    lbg=np.zeros(constraints.shape[0]),
-    ubg=np.zeros(constraints.shape[0]),
+    lbg=-ca.inf,
+    ubg=ca.inf,
     lbx=-ca.inf,
     ubx=ca.inf
 )
