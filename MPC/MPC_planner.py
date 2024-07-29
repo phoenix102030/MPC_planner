@@ -91,7 +91,7 @@ def update(frame):
     constraints = []
 
     for k in range(current_N):
-        cost += ca.sumsqr(X[:3, k] - X_ref[:3, frame + k]) + ca.sumsqr(u[:, k])
+        cost += ca.sumsqr(X[:3, k] - X_ref[:3, frame + k]) + 0.1 * ca.sumsqr(u[:, k])
         next_state = X[:, k] + dt * ca.vertcat(
             X[3, k] * ca.cos(X[2, k]),
             X[3, k] * ca.sin(X[2, k]),
