@@ -159,5 +159,5 @@ axs[1].legend()
 axs[1].grid()
 
 plt.tight_layout()
-plt.savefig('control_values_plot.png')  # Save the plot in the current directory
+plt.savefig('/mnt/data/control_values_plot.png')  # Save the plot in the specified directory
 plt.show()
