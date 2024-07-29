@@ -10,10 +10,27 @@ T = 100   # total number of simulation steps
 
 # Define vehicle parameters
 L = 2.0   # wheelbase
+v0 = 1.0  # constant velocity
 
-# Define reference trajectory (circle for example)
-t = np.linspace(0, T*dt, T+1)
-X_ref = np.vstack((t, np.sin(np.pi/2 + 0.5*t), 0.1 * t))
+# Define steering angle limits
+delta_max = np.pi/4
+delta_min = -np.pi/4
+
+# Generate reference trajectory
+X_ref = np.zeros((4, T+1))
+delta_ref = np.zeros(T+1)
+steering_duration = int(2.0 / dt)
+for i in range(T+1):
+    if (i // steering_duration) % 2 == 0:
+        delta_ref[i] = delta_max
+    else:
+        delta_ref[i] = delta_min
+
+for i in range(1, T+1):
+    X_ref[0, i] = X_ref[0, i-1] + dt * v0 * np.cos(X_ref[2, i-1])
+    X_ref[1, i] = X_ref[1, i-1] + dt * v0 * np.sin(X_ref[2, i-1])
+    X_ref[2, i] = X_ref[2, i-1] + dt * v0 / L * np.tan(delta_ref[i-1])
+    X_ref[3, i] = v0  # Constant velocity
 
 # Define CasADi variables
 X = ca.SX.sym('X', 4, N+1)  # state variables [X, Y, theta, v]
@@ -36,7 +53,7 @@ opts = {
 solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
 
 # Initial state
-X_0_val = np.array([X_ref[0, 0], X_ref[1, 0], X_ref[2, 0], 1.0])
+X_0_val = np.array([X_ref[0, 0], X_ref[1, 0], X_ref[2, 0], v0])
 
 # Storage for simulation data
 X_sim = [X_0_val]
@@ -55,7 +72,7 @@ ax.plot(X_ref[0, :], X_ref[1, :], 'r--', label='Reference Trajectory')
 actual_line, = ax.plot([], [], 'b-', label='Actual Trajectory')
 prediction_line, = ax.plot([], [], 'g-', label='Predicted Trajectory')
 ax.set_xlim(0, T*dt)
-ax.set_ylim(-1.5, 1.5)
+ax.set_ylim(0, 5)
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.legend()
@@ -74,7 +91,7 @@ def update(frame):
     constraints = []
 
     for k in range(current_N):
-        cost += ca.sumsqr(X[:3, k] - X_ref[:, frame + k]) + ca.sumsqr(u[:, k])
+        cost += ca.sumsqr(X[:3, k] - X_ref[:3, frame + k]) + ca.sumsqr(u[:, k])
         next_state = X[:, k] + dt * ca.vertcat(
             X[3, k] * ca.cos(X[2, k]),
             X[3, k] * ca.sin(X[2, k]),
@@ -159,5 +176,5 @@ axs[1].legend()
 axs[1].grid()
 
 plt.tight_layout()
-plt.savefig('/mnt/data/control_values_plot.png')  # Save the plot in the specified directory
+plt.savefig('control_values_plot.png')  # Save the plot in the specified directory
 plt.show()
