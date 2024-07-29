@@ -26,7 +26,9 @@ constraints = []
 
 for k in range(N):
     # Cost function
-    cost += 5 * ca.sumsqr(X[:3, k] - X_ref[:, k]) + ca.sumsqr(u[:, k])
+    cost += 2 * ca.sumsqr(X[:3, k] - X_ref[:, k]) + ca.sumsqr(u[:, k])
+    if k>0:
+        cost += ca.sumsqr(u[:, k] - u[:, k-1])
 
     # System dynamics
     next_state = X[:, k] + dt * ca.vertcat(
