@@ -6,15 +6,30 @@ import matplotlib.animation as animation
 # Define the time step and horizon
 dt = 0.1  # time step
 N = 20    # prediction horizon
-T = 100    # total number of simulation steps
+T = 100   # total number of simulation steps
 
 # Define vehicle parameters
 L = 2.0   # wheelbase
-v = 1.0   # constant velocity
+v = 1.5   # constant velocity
 
-# Define reference trajectory (circle for example)
-t = np.linspace(0, T*dt, T+1)
-X_ref = np.vstack((t, np.sin(0.5*t), 0.1 * t))
+# Define steering angle limits
+delta_max = np.pi/4
+delta_min = -np.pi/4
+
+# Generate reference trajectory
+X_ref = np.zeros((3, T+1))
+delta_ref = np.zeros(T+1)
+steering_duration = int(2.0 / dt)
+for i in range(T+1):
+    if (i // steering_duration) % 2 == 0:
+        delta_ref[i] = delta_max
+    else:
+        delta_ref[i] = delta_min
+
+for i in range(1, T+1):
+    X_ref[0, i] = X_ref[0, i-1] + dt * v * np.cos(X_ref[2, i-1])
+    X_ref[1, i] = X_ref[1, i-1] + dt * v * np.sin(X_ref[2, i-1])
+    X_ref[2, i] = X_ref[2, i-1] + dt * v / L * np.tan(delta_ref[i-1])
 
 # Define CasADi variables
 X = ca.SX.sym('X', 3, N+1)  # state variables [X, Y, theta]
@@ -25,24 +40,6 @@ X_0 = ca.SX.sym('X_0', 3)  # initial state
 cost = 0
 constraints = []
 
-# for k in range(N):
-#     # Cost function
-#     cost += ca.sumsqr(X[:, k] - X_ref[:, k]) + ca.sumsqr(delta[k])
-
-#     # System dynamics
-#     next_state = X[:, k] + dt * ca.vertcat(
-#         v * ca.cos(X[2, k]),
-#         v * ca.sin(X[2, k]),
-#         v / L * ca.tan(delta[k])
-#     )
-#     constraints.append(X[:, k+1] - next_state)
-
-# # Initial state constraint
-# constraints.append(X[:, 0] - X_0)
-
-# # Combine all constraints into a single vector
-# constraints = ca.vertcat(*constraints)
-
 # Set up the optimization problem
 opt_variables = ca.vertcat(ca.reshape(X, -1, 1), delta)
 nlp = {'x': opt_variables, 'f': cost, 'g': constraints, 'p': X_0}
@@ -52,7 +49,7 @@ opts = {
     'ipopt.tol': 1e-4,
     'ipopt.acceptable_tol': 1e-4,
 }
-# solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
+solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
 
 # Initial state
 X_0_val = X_ref[:, 0]
@@ -61,17 +58,13 @@ X_0_val = X_ref[:, 0]
 X_sim = [X_0_val]
 delta_sim = []
 
-# Ser steering angel constraints
-delta_min = -np.pi/4
-delta_max = np.pi/4
-
 # Prepare figure for animation
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.plot(X_ref[0, :], X_ref[1, :], 'r--', label='Reference Trajectory')
 actual_line, = ax.plot([], [], 'b-', label='Actual Trajectory')
 prediction_line, = ax.plot([], [], 'g-', label='Predicted Trajectory')
-ax.set_xlim(0, T*dt)
-ax.set_ylim(-1.5, 1.5)
+ax.set_xlim(0, np.max(X_ref[0, :]))
+ax.set_ylim(np.min(X_ref[1, :]) - 1, np.max(X_ref[1, :]) + 1)
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.legend()
@@ -147,4 +140,18 @@ def update(frame):
 ani = animation.FuncAnimation(fig, update, frames=T, blit=True, repeat=False)
 ani.save('mpc_simulation.gif', writer='imagemagick')
 
+plt.show()
+
+# Plot control inputs
+fig, ax = plt.subplots(figsize=(10, 5))
+time = np.arange(len(delta_sim)) * dt
+
+ax.plot(time, delta_sim, label='Steering Angle (delta)')
+ax.set_xlabel('Time [s]')
+ax.set_ylabel('Steering Angle [rad]')
+ax.legend()
+ax.grid()
+
+plt.tight_layout()
+plt.savefig('control_values_plot.png')  # Save the plot in the specified directory
 plt.show()
