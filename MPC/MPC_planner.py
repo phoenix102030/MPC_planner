@@ -24,27 +24,6 @@ X_0 = ca.SX.sym('X_0', 4)  # initial state
 cost = 0
 constraints = []
 
-for k in range(N):
-    # Cost function
-    cost += 2 * ca.sumsqr(X[:3, k] - X_ref[:, k]) + ca.sumsqr(u[:, k])
-    if k>0:
-        cost += ca.sumsqr(u[:, k] - u[:, k-1])
-
-    # System dynamics
-    next_state = X[:, k] + dt * ca.vertcat(
-        X[3, k] * ca.cos(X[2, k]),
-        X[3, k] * ca.sin(X[2, k]),
-        X[3, k] / L * ca.tan(u[0, k]),
-        u[1, k]
-    )
-    constraints.append(X[:, k+1] - next_state)
-
-# Initial state constraint
-constraints.append(X[:, 0] - X_0)
-
-# Combine all constraints into a single vector
-constraints = ca.vertcat(*constraints)
-
 # Set up the optimization problem
 opt_variables = ca.vertcat(ca.reshape(X, -1, 1), ca.reshape(u, -1, 1))
 nlp = {'x': opt_variables, 'f': cost, 'g': constraints, 'p': X_0}
@@ -62,6 +41,7 @@ X_0_val = np.array([X_ref[0, 0], X_ref[1, 0], X_ref[2, 0], 1.0])
 # Storage for simulation data
 X_sim = [X_0_val]
 delta_sim = []
+acc_sim = []
 
 # Set steering angle and acceleration constraints
 delta_min = -np.pi/4
@@ -144,6 +124,7 @@ def update(frame):
     delta_applied = u_opt[0, 0]
     acc_applied = u_opt[1, 0]
     delta_sim.append(delta_applied)
+    acc_sim.append(acc_applied)
 
     # Update the state
     X_0_val = X_opt[:, 1]
@@ -159,4 +140,24 @@ def update(frame):
 ani = animation.FuncAnimation(fig, update, frames=T, blit=True, repeat=False)
 ani.save('mpc_simulation.gif', writer='imagemagick')
 
+plt.show()
+
+# Plot control inputs
+fig, axs = plt.subplots(2, 1, figsize=(10, 6))
+time = np.arange(len(delta_sim)) * dt
+
+axs[0].plot(time, delta_sim, label='Steering Angle (delta)')
+axs[0].set_xlabel('Time [s]')
+axs[0].set_ylabel('Steering Angle [rad]')
+axs[0].legend()
+axs[0].grid()
+
+axs[1].plot(time, acc_sim, label='Acceleration', color='orange')
+axs[1].set_xlabel('Time [s]')
+axs[1].set_ylabel('Acceleration [m/s^2]')
+axs[1].legend()
+axs[1].grid()
+
+plt.tight_layout()
+plt.savefig('control_values_plot.png')  # Save the plot in the current directory
 plt.show()
