@@ -10,7 +10,7 @@ T = 100   # total number of simulation steps
 
 # Define vehicle parameters
 L = 2.0   # wheelbase
-v0 = 1.0  # constant velocity
+v0 = 1.5  # constant velocity
 
 # Define steering angle limits
 delta_max = np.pi/4
